@@ -1,0 +1,10 @@
+# This command will run the given shell script when /brady/test changes.
+RegisterWatch(
+    znode='/brady/test',
+    action=Exec('\n'.join([
+        'date > /tmp/twitcher_example.output',
+        'echo START >> /tmp/twitcher_example.output',
+        'cat >> /tmp/twitcher_example.output',
+        'echo END >> /tmp/twitcher_example.output',
+        'sleep 5 >> /tmp/twitcher_example.output'
+        ])))

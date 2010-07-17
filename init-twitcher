@@ -1,0 +1,90 @@
+#!/bin/bash
+#
+# twitcher      This starts and stops twitcher.
+#
+# chkconfig: 345 56 50
+# description: Twitcher is a zookeeper watch system.
+#
+# processname: /usr/sbin/twitcher
+# pidfile: /var/run/twitcher.pid
+
+PATH=/sbin:/bin:/usr/bin:/usr/sbin
+
+# Source function library.
+. /etc/init.d/functions
+
+# Check that we are root ... so non-root users stop here
+[ `id -u` = 0 ] || exit 1
+
+# Check to see if the binary exists.
+[ -f /usr/sbin/twitcher ] || exit 1
+
+RETVAL=0
+
+prog="twitcher"
+
+start() {
+  echo -n $"Starting $prog: "
+
+  unset HOME MAIL USER USERNAME
+  daemon $prog --pidfile /var/run/twitcher.pid --daemonize --logfile /var/log/twitcher.log
+  RETVAL=$?
+  echo
+  touch /var/lock/subsys/twitcher
+  return $RETVAL
+}
+
+stop() {
+  echo -n $"Stopping $prog: "
+  killproc -p /var/run/twitcher.pid python26
+  RETVAL=$?
+  echo
+  rm -f /var/lock/subsys/twitcher
+  return $RETVAL
+}
+
+reload() {
+  echo -n $"Reloading configuration: "
+  killproc -p /var/run/twitcher.pid python26 -HUP
+  RETVAL=$?
+  echo
+  return $RETVAL
+}
+
+restart() {
+  stop
+  start
+}
+
+condrestart() {
+  [ -e /var/lock/subsys/twitcher ] && restart
+  return 0
+}
+
+
+# See how we were called.
+case "$1" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  status)
+    status $prog
+    ;;
+    restart)
+  restart
+    ;;
+  reload)
+    reload
+    ;;
+  condrestart)
+    condrestart
+    ;;
+  *)
+    echo $"Usage: $0 {start|stop|status|restart|condrestart|reload}"
+    RETVAL=1
+esac
+
+exit $RETVAL

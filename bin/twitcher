@@ -1,0 +1,155 @@
+#!/usr/bin/python26
+
+import fcntl
+import logging
+import logging.handlers
+import syslog
+import optparse
+import os
+import sys
+import zookeeper
+from twitcher.twitcher import Twitcher
+
+## this will be the daemon that acts off of zookeeper watches and compiles
+## templates into usable config files.  Twitcher is UK slang for
+## birdwatcher.  The US slang (birder) is boring
+
+
+def parse_args():
+  """Parses arguments and returns an OptionValues object.
+
+  This is split into a function in order to allow garbage collection of all
+  the various short term object definitions.
+  """
+  parser = optparse.OptionParser()
+  parser.add_option('-d', '--debug', action='store_true', dest='debug',
+                    default=None)
+  parser.add_option('--daemonize', action='store_true', dest='daemonize',
+                    default=None,
+                    help='Daemonize and run in the background.')
+  parser.add_option('--pidfile', action='store', dest='pidfile',
+                    default=None,
+                    help='Write pid to the given path.')
+  parser.add_option('--logfile', action='store', dest='logfile',
+                    default=None,
+                    help='Log to a file rather than syslog.')
+  parser.add_option('-v', '--verbose', action='store_true', dest='verbose',
+                    default=False)
+  parser.add_option('--log_to_stdout', action='store_true',
+                    dest='log_to_stdout', default=None,
+                    help='Write to stdout rather than syslog.')
+  parser.add_option('--devel', action='store_true', dest='devel',
+                    default=False)
+  parser.add_option('--config_path', action='store', dest='config_path',
+                    default=None,
+                    help='Location of the twitcher config files.')
+  parser.add_option('--zkservers', action='store', dest='zkservers',
+                    default='zookeeper.local.twitter.com:2181',
+                    help='Comma-separated list of host:port pairs.')
+  (options, args) = parser.parse_args()
+  parser.destroy()
+  if args:
+    print >> sys.stderr, 'Unknown arguments: %s' % ' '.join(args)
+    parser.get_usage()
+    sys.exit(1)
+
+  if options.devel:
+    if options.debug is None:
+      options.debug = True
+    if options.log_to_stdout is None:
+      options.log_to_stdout = True
+    if options.daemonize is None:
+      options.daemonize = False
+    if options.config_path is None:
+      options.config_path = 'config'
+  else:
+    if options.config_path is None:
+      options.config_path = '/etc/twitcher'
+
+  # Set the logging level to debug/info/warning.
+  logger = logging.getLogger()
+  if options.debug:
+    logger.setLevel(logging.DEBUG)
+    zookeeper.set_debug_level(zookeeper.LOG_LEVEL_DEBUG)
+  elif options.verbose:
+    logger.setLevel(logging.INFO)
+    zookeeper.set_debug_level(zookeeper.LOG_LEVEL_WARN)
+  else:
+    logger.setLevel(logging.WARNING)
+    zookeeper.set_debug_level(zookeeper.LOG_LEVEL_ERROR)
+
+  # Set the log format and configure where we log too.
+  if not options.log_to_stdout:
+    # If we are not logging to stdout we must disable zookeeper logging since
+    # it will write to stdout regardless which is very annoying.
+    zookeeper.set_debug_level(0)
+    formatter = logging.Formatter('%(asctime)s %(process)d %(message)s')
+    if options.logfile:
+      handler = logging.FileHandler(options.logfile)
+    else:
+      handler = logging.handlers.SysLogHandler(
+          address='/dev/log', facility=syslog.LOG_DAEMON)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+  else:
+    formatter = logging.Formatter('%(asctime)s %(filename)s:%(lineno)d: '
+                                  '%(message)s')
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+
+  return options
+
+
+def write_pid(pid_filename):
+  try:
+    fdw = open(pid_filename, 'a')
+    fcntl.lockf(fdw, fcntl.LOCK_NB | fcntl.LOCK_EX)
+    os.ftruncate(fdw.fileno(), 0)
+    fdw.write(str(os.getpid()))
+    fdw.flush()
+
+    # We have to stash the file descriptor away otherwise python will gc
+    # the object which closes the file and eliminates the lock.
+    globals()['___pid_file_lock_%s' % fdw.fileno()] = fdw
+
+    # We leave the file descriptor open for a long as the process is running in
+    # order to maintain the lock on the file. Once the app closes the lock is
+    # released which allows another instance to start.
+    # TODO: Figure out why atexit is deleting pids before exiting.
+    #atexit.register(os.unlink, pid_filename)
+  except IOError, e:
+    # This usually means that there is already a running process.
+    # Get the pid of the other process.
+    fdr = open(pid_filename, 'r')
+    pid = fdr.read()
+    fdr.close()
+    print >> sys.stderr, 'Unable to obtain lock on %s' % pid_filename
+    print >> sys.stderr, 'Is another process already running? Perhaps %s' % pid
+    sys.exit(1)
+
+
+def daemonize():
+  logging.info('Daemonizing')
+  try:
+    os.chdir('/')
+    if os.fork() != 0:
+      os._exit(0)
+    os.setsid()
+    if os.fork() != 0:
+      os._exit(0)
+    os.umask(0)
+
+  except OSError, e:
+    logging.error('Unable to daemonize: %s' % e.message())
+
+
+options = parse_args()
+
+if options.daemonize:
+  daemonize()
+if options.pidfile:
+  write_pid(options.pidfile)
+
+t = Twitcher(options.zkservers.split(','), options.config_path)
+t.run()
