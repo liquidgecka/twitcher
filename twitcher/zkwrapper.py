@@ -16,12 +16,12 @@ be created and destroyed often.
 Author: Brady Catherman (brady@twitter.com)
 """
 
+import core
 import logging
 import os
 import socket
 import threading
 import zookeeper
-
 
 class ZKWrapper(object):
   """Wraps all zookeeper functionality into a simple wrapper.
@@ -47,6 +47,10 @@ class ZKWrapper(object):
     self._watcher_lock = threading.Lock()
     self._watches = {}
     self._handlers = {}
+    self._children_lock = threading.Lock()
+    self._children_watcher_lock = threading.Lock()
+    self._children_watches = {}
+    self._children_handlers = {}
     self._zookeeper = None
     self._clientid = None
     self._connect()
@@ -124,33 +128,88 @@ class ZKWrapper(object):
       # FIXME(error handling)
       logging.debug('Performing a get against %s', path)
       zookeeper.aget(self._zookeeper, path, w, h)
+      
+  def aget_children(self, path, watcher=None, handler=None):
+    """A simple wrapper for zookeeper async get_children function.
 
-  def unregister(self, path, watcher=None, handler=None):
+    This function wraps the zookeeper aget_children call which allows the caller
+    to register a function to handle the child node list once it is received as well
+    as a function that will be called once any child nodes are added/removed. If
+    neither is given then this function will do nothing.
+
+    Args:
+      path: The znode to watch.
+      watcher: Called when child nodes are added or removed. the basic
+               footprint of this function is:
+                 func(zh, path)
+                 zh will be this object, and path will be the znode path.
+      handler: Called when the child nodes has been fetched from zookeper. The basic
+               footprint of this function is:
+                 func(zh, rc, children, path)
+                 zh will be this object and path will be the znode path.
+                 rc is the return code from zookeeper.
+                 children is the list of child nodes after the create/delete.
+
+    Returns:
+      Nothing.
+    """
+    register = False
+    get = False
+    self._children_lock.acquire()
+    if watcher:
+      register = path not in self._children_watches
+      self._children_watches.setdefault(path, []).append(watcher)
+    if handler:
+      get = path not in self._children_handlers
+      self._children_handlers.setdefault(path, []).append(handler)
+    self._children_lock.release()
+    if register or get:
+      if register:
+        w = self._children_watcher
+      else:
+        w = None
+      # We use a lambda here so we can make sure that the path gets appended
+      # to the args. This allows us to multiplex the call.
+      h = (lambda zh, rc, data: self._children_handler(zh, rc, data, path))
+      # FIXME(error handling)
+      logging.debug('Performing a get_children against %s', path)
+      zookeeper.aget_children(self._zookeeper, path, w, h)
+
+  def unregister(self, path, watch_type=None, watcher=None, handler=None):
     """Removes an existing watch or handler.
 
     This unregisters an object's watch and handler callback functions. It
-    doesn't actually prevent the watch or hanler from triggering but it
-    does remove all references frmo the object and prevent the functions
+    doesn't actually prevent the watch or handler from triggering but it
+    does remove all references fromo the object and prevent the functions
     from being called. This allows garbage collection of the object.
 
     Args:
       path: The znode being watched.
+      watch_type: Type of watcher to unregister - must be in (core.WATCH_DATA, core.WATCH_CHILDREN)
       watcher: The watcher function that should be removed.
       handler: The handler function that should be removed.
 
     Returns:
       Nothing.
     """
+    
+    if watch_type is core.WATCH_CHILDREN:
+        watches = self._children_watches
+        handlers = self_children_handlers
+    else:
+        watches = self._watches
+        handlers = self._handlers
+    
     if watcher:
       try:
         while True:
-          self._watches.get(path, []).remove(watcher)
+          watches.get(path, []).remove(watcher)
       except ValueError:
         pass
     if handler:
       try:
         while True:
-          self._watches.get(path, []).remove(handler)
+          handlers.get(path, []).remove(handler)
       except ValueError:
         pass
 
@@ -213,3 +272,48 @@ class ZKWrapper(object):
     while handlers:
       handler = handlers.pop()
       handler(self, rc, data, path)
+
+  def _children_watcher(self, zh, event, state, path):
+    """Internal function called by zookeeper when child nodes are added to or removed from a node.
+
+    Args:
+      zh: The real zookeeper handler object that created the watch.
+      event: The event that triggered this watch.
+      state: The state of the connection.
+      path: The znode that triggered this watch.
+
+    Returns:
+      Nothing.
+    """
+    logging.info('Recieved a zookeeper child node watcher notification for %s', path)
+    watches = self._children_watches.pop(path, None)
+    self._children_watcher_lock.acquire()
+    while watches:
+      callback = watches.pop()
+      callback(self, path)
+    self._children_watcher_lock.release()
+
+  def _children_handler(self, zh, rc, children, path):
+    """Handles zookeeper get_children calls.
+
+    This function is called once an aget_children() request completes.
+    It returns a list of the nodes children back to the caller.
+
+    Args:
+      zh: the zookeeper object the watched was registered against.
+      rc: The return code from the call.
+      children: The list of current child nodes
+      path: The znode that we are getting the children of.
+
+    Returns:
+      Nothing.
+    """      
+    logging.info('Received child nodes of %s', path)
+    logging.debug('Child nodes of %s %r.', path, children)
+    self._children_watcher_lock.acquire()
+    handlers = self._children_handlers.pop(path, None)
+    self._children_watcher_lock.release()
+    while handlers:
+      handler = handlers.pop()
+      print handler
+      handler(self, rc, children, path)

@@ -47,6 +47,8 @@ QUEUE = 1
 PARALLEL = 2
 DISCARD = 3
 
+WATCH_DATA = 1
+WATCH_CHILDREN = 2
 
 class UnknownUserError(Exception):
   pass
