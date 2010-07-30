@@ -315,5 +315,4 @@ class ZKWrapper(object):
     self._children_watcher_lock.release()
     while handlers:
       handler = handlers.pop()
-      print handler
       handler(self, rc, children, path)
