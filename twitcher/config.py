@@ -183,6 +183,11 @@ class ConfigFile(inotify.WatchClass):
     exec_globals = {
         'Exec': namespace_config.Exec,
         'RegisterWatch': namespace_config.RegisterWatch,
+        'QUEUE': core.QUEUE,
+        'PARALLEL': core.PARALLEL,
+        'DISCARD': core.DISCARD,
+        'WATCH_DATA': core.WATCH_DATA,
+        'WATCH_CHILDREN': core.WATCH_CHILDREN,
         }
     try:
       execfile(self._filename, exec_globals, {})
