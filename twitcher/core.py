@@ -489,3 +489,27 @@ class TwitcherObject(object):
       # Failure!
       # FIXME(brady)
       return
+  
+class TwitcherChildrenObject(TwitcherObject):
+  def _register_watch(self, handler=True):
+    """Called to actually register a watch (and perform a get_children if needed.)
+
+    This function will wrap the zookeeper calls in order to make it easy to
+    register a watch and fetch data regardless of the options we have
+    been configured with.
+
+    Args:
+      handler: Optional. If true (default) then self._handler will be called
+               when new data is received, otherwise nothing will be called.
+
+    Returns:
+      Nothing.
+    """
+    if handler is True:
+      h = self._handler
+    else:
+      h = None
+    default_zkwrapper.aget_children(self._path, handler=h, watcher=self._watch)
+    
+  def _exec(self, data):
+      super(TwitcherChildrenObject, self)._exec("\n".join(data))

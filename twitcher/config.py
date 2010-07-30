@@ -38,7 +38,7 @@ class _NamespaceConfig(object):
 
   def RegisterWatch(self, znode=None, action=None, pipe_stdin=None,
                     run_on_load=None, run_mode=None, description=None,
-                    uid=None, gid=None):
+                    uid=None, gid=None, watch_type=None):
     """Registers a watch and action on a given znode.
 
     This is the main function configuration files are expected to work with.
@@ -66,6 +66,10 @@ class _NamespaceConfig(object):
                    for logging.
       uid: The user id to run the process as.
       gid: The group id to run the process as.
+      watch_type: The type of watcher to set on the node. The options are:
+            WATCH_DATA: Watches the node data for changes
+            WATCH_CHILDREN: Watches for creation/deletion of child nodes
+                            of the watched node
 
     Returns:
       Nothing.
@@ -93,6 +97,9 @@ class _NamespaceConfig(object):
             type(gid) == types.IntType or
             type(gid) == types.StringType), (
         'RegisterWatch: gid must be a number of a string.')
+    assert (watch_type is None or watch_type is core.WATCH_DATA or
+            watch_type is core.WATCH_CHILDREN), (
+        'RegisterWatch: watch_type is not one of WATCH_DATA or WATCH_CHILDREN')
 
     if description is None:
       description = '%s-%s' % (self._config_file, len(self._configurations) + 1)
@@ -110,7 +117,10 @@ class _NamespaceConfig(object):
     if gid is not None:
       kwargs['gid'] = gid
 
-    config = core.TwitcherObject(znode, action, **kwargs)
+    if watch_type is core.WATCH_CHILDREN:
+        config = core.TwitcherChildrenObject(znode, action, **kwargs)
+    else:
+        config = core.TwitcherObject(znode, action, **kwargs)
     self._configurations.append(config)
 
   def Exec(self, command):
