@@ -38,7 +38,7 @@ class _NamespaceConfig(object):
 
   def RegisterWatch(self, znode=None, action=None, pipe_stdin=None,
                     run_on_load=None, run_mode=None, description=None,
-                    uid=None, gid=None):
+                    uid=None, gid=None, notify_signal=None, timeout=None):
     """Registers a watch and action on a given znode.
 
     This is the main function configuration files are expected to work with.
@@ -56,7 +56,7 @@ class _NamespaceConfig(object):
       run_mode: Defines what should happen if the znode updates while the
                 script is still running. The options are:
             QUEUE: Queue the update and run the action once the current action
-                   finishes. Note that if two watchs trigger while the action
+                   finishes. Note that if two watches trigger while the action
                    is currently running it will still only be run once.
             PARALLEL: Run the action every time it triggers regardless if
                       an action is already running.
@@ -66,6 +66,10 @@ class _NamespaceConfig(object):
                    for logging.
       uid: The user id to run the process as.
       gid: The group id to run the process as.
+      notify_signal: The signal that will be sent to a child process when
+                     the znode is modified. This only matters in QUEUE mode.
+      timeout: The number of seconds to allow the process to run before
+               killing it.
 
     Returns:
       Nothing.
@@ -93,6 +97,14 @@ class _NamespaceConfig(object):
             type(gid) == types.IntType or
             type(gid) == types.StringType), (
         'RegisterWatch: gid must be a number of a string.')
+    assert (notify_signal is None or
+            (type(notify_signal) == types.IntType and
+             notify_signal > 0 and notify_signal < 32)), (
+        'RegisterWatch: notify_signal must be an int below 32.')
+    assert (timeout is None or
+            type(timeout) == types.IntType or
+            type(timeout) == types.FloatType), (
+        'RegisterWatch: timeout must be a number.')
 
     if description is None:
       description = '%s-%s' % (self._config_file, len(self._configurations) + 1)
@@ -109,6 +121,10 @@ class _NamespaceConfig(object):
       kwargs['uid'] = uid
     if gid is not None:
       kwargs['gid'] = gid
+    if notify_signal is not None:
+      kwargs['notify_signal'] = notify_signal
+    if timeout is not None:
+      kwargs['timeout'] = timeout
 
     config = core.TwitcherObject(znode, action, **kwargs)
     self._configurations.append(config)

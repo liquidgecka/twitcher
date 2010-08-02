@@ -49,6 +49,7 @@ class ZKWrapper(object):
     self._handlers = {}
     self._zookeeper = None
     self._clientid = None
+    self._pending_gets = []
     self._connect()
 
   def _global_watch(self, zh, event, state, path):
@@ -57,6 +58,10 @@ class ZKWrapper(object):
       self._connect()
     if state == zookeeper.CONNECTED_STATE:
       self._clientid = zookeeper.client_id(self._zookeeper)
+      # Catch up all gets requested before we were able to connect.
+      while self._pending_gets:
+        path, w, h = self._pending_gets.pop()
+        zookeeper.aget(self._zookeeper, path, w, h)
 
   def _connect(self):
     """Creates a connection to a zookeeper instance."""
@@ -67,15 +72,22 @@ class ZKWrapper(object):
         for ip in ips:
           s.append('%s:%s' % (ip, port))
       except socket.gaierror:
-        logging.error('Hotname not known: %s', host)
+        logging.error('Hostname not known: %s', host)
       except socket.herror:
         logging.error('Unable to resolve %s', host)
+
+    if not s:
+      logging.error('No IPs found to connect to.. trying again in 1 second.')
+      t = threading.Timer(1.0, self._connect)
+      t.daemon = True
+      t.start()
+      return
 
     if self._clientid is not None:
       # Existing connections get registered with the same clientid that was
       # used before.
-      self._zookeeper = zookeeper.init(','.join(s), self._global_watch, None,
-                                       clientid)
+      self._zookeeper = zookeeper.init(
+          ','.join(s), self._global_watch, None, clientid)
     else:
       self._zookeeper = zookeeper.init(','.join(s), self._global_watch)
 
@@ -121,7 +133,6 @@ class ZKWrapper(object):
       # We use a lambda here so we can make sure that the path gets appended
       # to the args. This allows us to multiplex the call.
       h = (lambda zh, rc, data, stat: self._handler(zh, rc, data, stat, path))
-      # FIXME(error handling)
       logging.debug('Performing a get against %s', path)
       zookeeper.aget(self._zookeeper, path, w, h)
 
@@ -173,6 +184,8 @@ class ZKWrapper(object):
     Returns:
       Nothing.
     """
+    if event == zookeeper.SESSION_EVENT:
+      return
     logging.info('Received a zookeeper watcher notification for %s', path)
     watches = self._watches.pop(path, None)
     # We lock this while we call all the registered watchers so they all
@@ -203,13 +216,18 @@ class ZKWrapper(object):
     Returns:
       Nothing.
     """
-    logging.info('Received znode contents for %s', path)
-    logging.debug('Contents of %s\n"""%s""".', path, data)
-    # This lock means that we will not process the handler until all
-    # watchers have been notified.
-    self._watcher_lock.acquire()
-    handlers = self._handlers.pop(path, None)
-    self._watcher_lock.release()
-    while handlers:
-      handler = handlers.pop()
-      handler(self, rc, data, path)
+    if rc == zookeeper.OK:
+      logging.info('Received znode contents for %s', path)
+      logging.debug('Contents of %s\n"""%s""".', path, data)
+      # This lock means that we will not process the handler until all
+      # watchers have been notified.
+      self._watcher_lock.acquire()
+      handlers = self._handlers.pop(path, None)
+      self._watcher_lock.release()
+      while handlers:
+        handler = handlers.pop()
+        handler(self, rc, data, path)
+    elif rc == zookeeper.CONNECTIONLOSS:
+      logging.info('Watch event triggered for %s: Connection loss.', path)
+      h = (lambda zh, rc, data, stat: self._handler(zh, rc, data, stat, path))
+      self._pending_gets.append((path, self._watcher, h))

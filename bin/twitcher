@@ -78,6 +78,8 @@ def parse_args():
     logger.setLevel(logging.WARNING)
     zookeeper.set_debug_level(zookeeper.LOG_LEVEL_ERROR)
 
+  zookeeper.set_debug_level(zookeeper.LOG_LEVEL_ERROR)
+
   # Set the log format and configure where we log too.
   if not options.log_to_stdout:
     # If we are not logging to stdout we must disable zookeeper logging since
@@ -139,9 +141,13 @@ def daemonize():
     if os.fork() != 0:
       os._exit(0)
     os.umask(0)
-
   except OSError, e:
     logging.error('Unable to daemonize: %s' % e.message())
+
+  if not options.log_to_stdout:
+    sys.stdin.close()
+    sys.stdout.close()
+    sys.stderr.close()
 
 
 options = parse_args()

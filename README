@@ -88,6 +88,12 @@ RegisterWatch(): Creates a watch that will run a script when a Zookeeper node
          run as root.
     gid: The group id to run the process as (string or int). The default is to
          run as root.
+    notify_signal: This is the signal that will be send to the spawned
+                   process that is currently running when a new update has
+                   been received. By default this is not used, and it will only
+                   work if the run_mode is QUEUE.
+    timeout: The number of seconds before any spawned process should be sent
+             a SIGTERM. Five seconds later the process will be sent a SIGKILL.
     description: This is a text description of the watch which will be used
                  for logging. The default is to name watches after the file
                  they are configured in.
@@ -172,6 +178,11 @@ include "retry x times" "fail but keep watch" "fail and stop watching"
 
 7. Change Log
 =============
+
+
+Release: 1.3
+
+20100/8/2: Added notify_signal and timeout support and fix a few bugs.
 
 Release: 1.2, Open source under the Apache 2.0 license.
 

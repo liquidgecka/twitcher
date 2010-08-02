@@ -15,6 +15,7 @@ import resource
 import threading
 import types
 import pwd
+import signal
 import sys
 import time
 import zookeeper
@@ -73,15 +74,20 @@ class MinimalSubprocess(object):
     desc: The string description of this subprocess.
     data: The data we should write to stdin of the forked process.
   """
-  def __init__(self, desc, data):
+  def __init__(self, desc, data, timeout=None):
     logging.debug('Creating MinimalSubprocess (%s): %s', self, desc)
     self.stdin = None
     self.pid = -1
     self.desc = desc
     self.data = data
+    self.sigterm_sent = False
+    if timeout is None:
+      self.timeout_secs = sys.maxint
+    else:
+      self.timeout_secs = time.time() + timeout
 
   def __del__(self):
-    """Verifies that the file descripts all get closed properly."""
+    """Verifies that the file descriptors all get closed properly."""
     logging.debug('Reaping MinimalSubprocess "%s" (%s)', self.desc, self)
     if self.stdin is not None:
       try:
@@ -89,12 +95,57 @@ class MinimalSubprocess(object):
       except OSError:
         pass
 
+  def signal(self, signal):
+    """Sends the given signal to the child process.
+
+    Args:
+      signal: The signal to send to the child, (see the signal module).
+    """
+    try:
+      os.kill(self.pid, signal)
+    except:
+      pass
+
+  def timeout(self):
+    """Returns the number of seconds until this process times out.
+
+    This function returns the timeout that was specified in the
+    constructor, or if timeout was not specified then sys.maxint will be
+    returned. This allows timeouts to always functionally exist. If this
+    returns a negative value then the timeout has expired by the given
+    number of seconds.
+
+    Returns:
+      The number of seconds until (or since if negative) the process is
+      considered timed out.
+    """
+    return self.timeout_secs - time.time()
+
+  def terminate(self):
+    """Called to terminate the child process.
+
+    Calling this function will start the cycle of terminating the child
+    process. Initially this will sent a SIGTERM, then after 5 seconds it will
+    send a SIGKILL. Once a SIGKILL has been sent the timeout will be
+    removed and the natural process termination cycle is assumed to be
+    in progress.
+    """
+    if self.sigterm_sent:
+      logging.warning('Killing "%s" (timeout)', self.desc)
+      os.kill(self.pid, signal.SIGKILL)
+      self.timeout_secs = sys.maxint
+    else:
+      logging.warning('Attempting to terminate "%s" (timeout)', self.desc)
+      self.sigterm_sent
+      os.kill(self.pid, signal.SIGTERM)
+      self.timeout_secs = time.time() + 5
+
   def poll(self):
     """Tests to see if the process has exited.
 
     This function mimics subprocess.Popen.poll(). It returns None if the
     process has not exited yet and if it has it will set returncode and
-    return the vaule.
+    return the value.
 
     Once this call has returned a value other than None further calls will
     result in a OSError being thrown.
@@ -262,11 +313,16 @@ class TwitcherObject(object):
                             currently running.
     uid: The user id the process should run as.
     gid: The group id the process should run as.
+    notify_signal: If set this signal will be sent to the currently running
+                   process to indicate that another update has been received.
+    timeout: The number of seconds that the script should be allowed to
+             execute before being killed.
     description: The basic description of this command (ex: command line)
   """
   def __init__(self, path, run_func,
                pipe_stdin=True, run_on_load=True,
                run_mode=QUEUE, uid=None, gid=None,
+               notify_signal=None, timeout=None,
                description='generic object'):
     self._path = path
     self._run_func = run_func
@@ -277,13 +333,15 @@ class TwitcherObject(object):
     self._description = description
     self._uid = uid
     self._gid = gid
+    self._notify_signal = notify_signal
+    self._timeout = timeout
     self._unhandled_watch = None
     self._lock = threading.Lock()
 
   def init(self):
     """Called to initialize this object.
 
-    This is split out from the __init__ call to allow the msot likely error
+    This is split out from the __init__ call to allow the most likely error
     conditions to be captured be twitcher rather than the configuration
     object.
 
@@ -311,6 +369,35 @@ class TwitcherObject(object):
         w_fds.append(p.stdin)
     self._lock.release()
     return (r_fds, w_fds)
+
+  def next_timeout(self):
+    """Returns the number of seconds until the next timeout.
+
+    This function will return the next timeout value for all children or
+    sys.maxint if no children are impending timeout.
+
+    Returns:
+      The number of seconds until the next child process times out.
+    """
+    return min([x.timeout() for x in self._processes] + [sys.maxint])
+
+  def timeout(self):
+    """Called when select times out.
+
+    This function is called when select() times out. Select will timeout
+    based on the next lowest value of all the returned values from
+    next_timeout(). It is expected that this function will look for timed out
+    processes and start the process of killing them off.
+
+    Returns:
+      Nothing.
+    """
+    # Double check that a child process has not exited cleanly by
+    # pretending that we received a SIGCHLD.
+    self.sigchld()
+    for p in self._processes:
+      if p.timeout() <= 0:
+        p.terminate()
 
   def sigchld(self):
     """Called when SIGCHLD is received.
@@ -378,10 +465,10 @@ class TwitcherObject(object):
     default_zkwrapper.aget(self._path, handler=h, watcher=self._watch)
 
   def _exec(self, data):
-    """Starts the registered fuction as a second process
+    """Starts the registered function as a second process
 
     This will fork and start the registered function on a second process.
-    This shouldn't block on anything. It mearly starts then returns.
+    This shouldn't block on anything. It merely starts then returns.
 
     Args:
       data: The data that should be written to stdin on the sub process.
@@ -391,7 +478,7 @@ class TwitcherObject(object):
     """
     logging.warning('Executing process: %s' % self._description)
     try:
-      p = MinimalSubprocess(self._description, data)
+      p = MinimalSubprocess(self._description, data, timeout=self._timeout)
       p.fork_exec(self._run_func, self._uid, self._gid)
       self._lock.acquire()
       self._processes.append(p)
@@ -408,7 +495,7 @@ class TwitcherObject(object):
   def _post_exec(self):
     """Run once the script has finished executing.
 
-    This will clean up after a script run. It should reexecute the script if
+    This will clean up after a script run. It should re-execute the script if
     QUEUE mode is selected and we received a watch update while running the
     script. If needed it will also reregister the watch so that we continue
     getting update notifications.
@@ -457,8 +544,11 @@ class TwitcherObject(object):
     logging.info('Received watch notification for %s', path)
     if self._processes and self._run_mode != PARALLEL:
       logging.warning('Postponing processing of "%s" '
-                      '(a scipt is already running).', self._description)
+                      '(a script is already running).', self._description)
       self._unhandled_watch = (zh, path)
+      if self._notify_signal is not None:
+        for i in self._processes:
+          i.signal(self._notify_signal)
       return
     self._register_watch()
     if not self._pipe_stdin:
