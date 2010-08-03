@@ -14,6 +14,7 @@ import logging
 import os
 import select
 import signal
+import sys
 
 # Twitcher modules
 from inotify import InotifyWatcher
@@ -26,7 +27,7 @@ class Twitcher(object):
   """The main operating loop of the twitcher program.
 
   Args:
-    zkservers: A common seperated list of zookeeper servers to connect too.
+    zkservers: A comma separated list of zookeeper servers to connect too.
     config_path: The path to (recursively) read config files from.
   """
   def __init__(self, zkservers, config_path):
@@ -71,18 +72,21 @@ class Twitcher(object):
       # when sigchld is received.
       r_fds = [self._signal_notifier[0]]
       w_fds = []
+      # We automatically check process timeouts every 5 minutes if no other
+      # action has happened. This ensures that processes clean up.
+      timeout = 60
       for c in self._get_all_config_objects():
+        timeout = min((timeout, c.next_timeout()))
         cr, cw = c.get_fds()
         r_fds += cr
         w_fds += cw
 
       try:
-        iready, oready, e = select.select(r_fds, w_fds, [], 60)
+        iready, oready, e = select.select(r_fds, w_fds, [], timeout)
         if not iready and not oready and not e:
-          # On timeouts we check all child processes for safety. This makes
-          # sure we don't lose one somehow.
-          _sigchld_received = True
           logging.debug('select loop timed out without updates.')
+          for c in self._get_all_config_objects():
+            c.timeout()
         else:
           if self._signal_notifier[0] in iready:
             os.read(self._signal_notifier[0], 1)
