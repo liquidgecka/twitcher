@@ -27,7 +27,7 @@ start() {
   echo -n $"Starting $prog: "
 
   unset HOME MAIL USER USERNAME
-  daemon $prog --pidfile /var/run/twitcher.pid --daemonize --logfile /var/log/twitcher.log
+  daemon $prog --pidfile /var/run/twitcher.pid --daemonize --logfile /var/log/twitcher.lo --debugg
   RETVAL=$?
   echo
   touch /var/lock/subsys/twitcher
