@@ -169,9 +169,6 @@ None at the moment.
 6. Future Features
 ==================
 
-Timeouts on the child processes: Allow the config to set a timeout after which
-the script will be considered failed.
-
 Failure handling on the child process: Allow the config to specify what should
 be done in the case where the script fails (returns non zero). Some examples
 include "retry x times" "fail but keep watch" "fail and stop watching"
@@ -180,9 +177,11 @@ include "retry x times" "fail but keep watch" "fail and stop watching"
 =============
 
 
+2010/8/3: Documentation fixes.
+
 Release: 1.3
 
-20100/8/2: Added notify_signal and timeout support and fix a few bugs.
+2010/8/2: Added notify_signal and timeout support and fix a few bugs.
 
 Release: 1.2, Open source under the Apache 2.0 license.
 
