@@ -14,6 +14,7 @@ from twitcher.twitcher import Twitcher
 ## templates into usable config files.  Twitcher is UK slang for
 ## birdwatcher.  The US slang (birder) is boring
 
+logger = logging.getLogger()
 
 def parse_args():
   """Parses arguments and returns an OptionValues object.
@@ -67,7 +68,6 @@ def parse_args():
       options.config_path = '/etc/twitcher'
 
   # Set the logging level to debug/info/warning.
-  logger = logging.getLogger()
   if options.debug:
     logger.setLevel(logging.DEBUG)
     zookeeper.set_debug_level(zookeeper.LOG_LEVEL_DEBUG)
@@ -77,8 +77,6 @@ def parse_args():
   else:
     logger.setLevel(logging.WARNING)
     zookeeper.set_debug_level(zookeeper.LOG_LEVEL_ERROR)
-
-  zookeeper.set_debug_level(zookeeper.LOG_LEVEL_ERROR)
 
   # Set the log format and configure where we log too.
   if not options.log_to_stdout:
@@ -156,6 +154,8 @@ if options.daemonize:
   daemonize()
 if options.pidfile:
   write_pid(options.pidfile)
+
+logger.info('Starting twitcher: %s' % ' '.join(sys.argv))
 
 t = Twitcher(options.zkservers.split(','), options.config_path)
 t.run()
