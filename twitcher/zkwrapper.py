@@ -87,7 +87,7 @@ class ZKWrapper(object):
       # Existing connections get registered with the same clientid that was
       # used before.
       self._zookeeper = zookeeper.init(
-          ','.join(s), self._global_watch, None, clientid)
+          ','.join(s), self._global_watch, None, self._clientid)
     else:
       self._zookeeper = zookeeper.init(','.join(s), self._global_watch)
 
