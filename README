@@ -176,6 +176,9 @@ include "retry x times" "fail but keep watch" "fail and stop watching"
 7. Change Log
 =============
 
+Release: 1.4
+
+2010/10/25: Fix client session expiration recovery.
 
 2010/8/3: Documentation fixes.
 

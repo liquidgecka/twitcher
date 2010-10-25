@@ -54,14 +54,18 @@ class ZKWrapper(object):
 
   def _global_watch(self, zh, event, state, path):
     """Called when the connection to zookeeper has a state change."""
+    logging.debug("Global watch fired: %r %r %r" % (event, state, path))
     if state == zookeeper.EXPIRED_SESSION_STATE:
+      self._clientid = None
       self._connect()
-    if state == zookeeper.CONNECTED_STATE:
+    elif state == zookeeper.CONNECTED_STATE:
       self._clientid = zookeeper.client_id(self._zookeeper)
       # Catch up all gets requested before we were able to connect.
       while self._pending_gets:
         path, w, h = self._pending_gets.pop()
         zookeeper.aget(self._zookeeper, path, w, h)
+
+  _DEFAULT_TIMEOUT = 10000
 
   def _connect(self):
     """Creates a connection to a zookeeper instance."""
@@ -83,13 +87,17 @@ class ZKWrapper(object):
       t.start()
       return
 
-    if self._clientid is not None:
-      # Existing connections get registered with the same clientid that was
-      # used before.
-      self._zookeeper = zookeeper.init(
-          ','.join(s), self._global_watch, None, self._clientid)
-    else:
-      self._zookeeper = zookeeper.init(','.join(s), self._global_watch)
+    try:
+      if self._clientid is not None:
+        # Existing connections get registered with the same clientid that was
+        # used before.
+        self._zookeeper = zookeeper.init(
+            ','.join(s), self._global_watch, self._DEFAULT_TIMEOUT,
+            self._clientid)
+      else:
+        self._zookeeper = zookeeper.init(','.join(s), self._global_watch)
+    except Exception, e:
+      logging.error('Unexpected error: %r', e)
 
   def aget(self, path, watcher=None, handler=None):
     """A simple wrapper for zookeeper async get function.
