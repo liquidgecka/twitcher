@@ -1,4 +1,4 @@
-%define VERSION  1.3
+%define VERSION  1.5
 %define RELEASE  1
 
 Name:           twitcher

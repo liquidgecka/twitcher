@@ -58,14 +58,25 @@ class ZKWrapper(object):
 
   def _global_watch(self, zh, event, state, path):
     """Called when the connection to zookeeper has a state change."""
+    logging.debug('Global watch fired: %s %s %s' % (event, state, path))
     if state == zookeeper.EXPIRED_SESSION_STATE:
+      self._clientid = None
       self._connect()
-    if state == zookeeper.CONNECTED_STATE:
+    elif state == zookeeper.CONNECTED_STATE:
       self._clientid = zookeeper.client_id(self._zookeeper)
+      # Re-get all existing watched files.
+      logging.debug('Registering watches on existing watch objects.')
+      for path in self._watches.iterkeys():
+        logging.debug('Registering watch against: %s' % path)
+        h = self._handler_wrapper(path)
+        zookeeper.aget(self._zookeeper, path, self._watcher, h)
+
       # Catch up all gets requested before we were able to connect.
       while self._pending_gets:
         path, w, h = self._pending_gets.pop()
         zookeeper.aget(self._zookeeper, path, w, h)
+
+  _DEFAULT_TIMEOUT = 10000
 
   def _connect(self):
     """Creates a connection to a zookeeper instance."""
@@ -87,13 +98,32 @@ class ZKWrapper(object):
       t.start()
       return
 
-    if self._clientid is not None:
-      # Existing connections get registered with the same clientid that was
-      # used before.
-      self._zookeeper = zookeeper.init(
-          ','.join(s), self._global_watch, None, clientid)
-    else:
-      self._zookeeper = zookeeper.init(','.join(s), self._global_watch)
+    try:
+      if self._clientid is not None:
+        # Existing connections get registered with the same clientid that was
+        # used before.
+        self._zookeeper = zookeeper.init(
+            ','.join(s), self._global_watch, self._DEFAULT_TIMEOUT,
+            self._clientid)
+      else:
+        self._zookeeper = zookeeper.init(','.join(s), self._global_watch)
+    except Exception, e:
+      logging.error('Unexpected error: %r', e)
+
+  def _handler_wrapper(self, path):
+    """Returns a lambda function that wraps the self._handler call.
+    
+    This returns a lambda function that actually wraps the self._handler
+    function in order to add path data which is not normally exposed to
+    the client.
+    
+    Args:
+      path: The zookeeper path being watched.
+
+    Returns:
+      A lambda object.
+    """
+    return (lambda z, r, d, s: self._handler(z, r, d, s, path))
 
   def aget(self, path, watcher=None, handler=None):
     """A simple wrapper for zookeeper async get function.
@@ -134,9 +164,7 @@ class ZKWrapper(object):
         w = self._watcher
       else:
         w = None
-      # We use a lambda here so we can make sure that the path gets appended
-      # to the args. This allows us to multiplex the call.
-      h = (lambda zh, rc, data, stat: self._handler(zh, rc, data, stat, path))
+      h = self._handler_wrapper(path)
       logging.debug('Performing a get against %s', path)
       zookeeper.aget(self._zookeeper, path, w, h)
       
@@ -288,7 +316,7 @@ class ZKWrapper(object):
         handler(self, rc, data, path)
     elif rc == zookeeper.CONNECTIONLOSS:
       logging.info('Watch event triggered for %s: Connection loss.', path)
-      h = (lambda zh, rc, data, stat: self._handler(zh, rc, data, stat, path))
+      h = self._handler_wrapper(path)
       self._pending_gets.append((path, self._watcher, h))
 
   def _children_watcher(self, zh, event, state, path):
