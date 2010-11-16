@@ -1,5 +1,5 @@
 %define VERSION  1.6
-%define RELEASE  1
+%define RELEASE  2
 
 Name:           twitcher
 Version:        %{VERSION}
