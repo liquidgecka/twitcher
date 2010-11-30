@@ -230,7 +230,7 @@ class ZKWrapper(object):
     
     if watch_type is core.WATCH_CHILDREN:
         watches = self._children_watches
-        handlers = self_children_handlers
+        handlers = self._children_handlers
     else:
         watches = self._watches
         handlers = self._handlers
