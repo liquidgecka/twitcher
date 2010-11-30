@@ -85,9 +85,9 @@ class _NamespaceConfig(object):
             type(action) == types.UnboundMethodType or
             type(action) == types.LambdaType), (
         'RegisterWatch: action must be a function, method or lambda.')
-    assert pipe_stdin is None or type(pipe_stdin) == types.BoolType, (
+    assert pipe_stdin is None or type(pipe_stdin) == types.BooleanType, (
         'RegisterWatch: pipe_stdin must be one of True or False.')
-    assert run_on_load is None or type(run_on_load) == types.BoolType, (
+    assert run_on_load is None or type(run_on_load) == types.BooleanType, (
         'RegisterWatch: run_on_load must be one of True of False.')
     assert (run_mode is None or run_mode is core.QUEUE or
             run_mode is core.PARALLEL or run_mode is core.DISCARD), (
