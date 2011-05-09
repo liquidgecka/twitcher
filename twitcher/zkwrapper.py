@@ -63,18 +63,21 @@ class ZKWrapper(object):
       self._clientid = None
       self._connect()
     elif state == zookeeper.CONNECTED_STATE:
-      self._clientid = zookeeper.client_id(self._zookeeper)
       # Re-get all existing watched files.
-      logging.debug('Registering watches on existing watch objects.')
-      for path in self._watches.iterkeys():
-        logging.debug('Registering watch against: %s' % path)
-        h = self._handler_wrapper(path)
-        zookeeper.aget(self._zookeeper, path, self._watcher, h)
+      if self._clientid is not None:
+        logging.debug('Session reconnection.')
+      else:
+        self._clientid = zookeeper.client_id(self._zookeeper)
+        logging.debug('Registering watches to reestablish expired session')
+        for path in self._watches.iterkeys():
+          logging.debug('Registering watch against: %s' % path)
+          h = self._handler_wrapper(path)
+          zookeeper.aget(self._zookeeper, path, self._watcher, h)
 
-      # Catch up all gets requested before we were able to connect.
-      while self._pending_gets:
-        path, w, h = self._pending_gets.pop()
-        zookeeper.aget(self._zookeeper, path, w, h)
+        # Catch up all gets requested before we were able to connect.
+        while self._pending_gets:
+          path, w, h = self._pending_gets.pop()
+          zookeeper.aget(self._zookeeper, path, w, h)
 
   _DEFAULT_TIMEOUT = 10000
 
@@ -99,14 +102,7 @@ class ZKWrapper(object):
       return
 
     try:
-      if self._clientid is not None:
-        # Existing connections get registered with the same clientid that was
-        # used before.
-        self._zookeeper = zookeeper.init(
-            ','.join(s), self._global_watch, self._DEFAULT_TIMEOUT,
-            self._clientid)
-      else:
-        self._zookeeper = zookeeper.init(','.join(s), self._global_watch)
+      self._zookeeper = zookeeper.init(','.join(s), self._global_watch, self._DEFAULT_TIMEOUT)
     except Exception, e:
       logging.error('Unexpected error: %r', e)
 
