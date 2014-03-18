@@ -1,1 +1,19 @@
+# Debian packaging files.
+build
+debian/files
+debian/twitcher.debhelper.log
+debian/twitcher.postinst.debhelper
+debian/twitcher.prerm.debhelper
+debian/twitcher.substvars
+debian/twitcher
+
+# setup.py generated files.
+MANIFEST
+version.txt
+dist
+
+# Python compiled module files
 *.pyc
+
+# Vim swap files.
+*.swp

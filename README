@@ -176,6 +176,11 @@ include "retry x times" "fail but keep watch" "fail and stop watching"
 7. Change Log
 =============
 
+Release 1.7.0
+
+2014/03/19: No signifigant code changes but major changes to the delivery
+            and build structure.
+
 Release: 1.5
 
 2010/11/08: Make connection re-establish all existing watches.

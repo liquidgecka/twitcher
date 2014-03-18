@@ -1,4 +1,4 @@
-#!/usr/bin/python26
+#!/usr/bin/python2
 
 import fcntl
 import logging
@@ -8,7 +8,8 @@ import optparse
 import os
 import sys
 import zookeeper
-from twitcher.twitcher import Twitcher
+
+from twitcher import Twitcher
 
 ## this will be the daemon that acts off of zookeeper watches and compiles
 ## templates into usable config files.  Twitcher is UK slang for
@@ -45,7 +46,7 @@ def parse_args():
                     default=None,
                     help='Location of the twitcher config files.')
   parser.add_option('--zkservers', action='store', dest='zkservers',
-                    default='zookeeper.local.twitter.com:2181',
+                    default='localhost:2181',
                     help='Comma-separated list of host:port pairs.')
   (options, args) = parser.parse_args()
   parser.destroy()
@@ -116,8 +117,6 @@ def write_pid(pid_filename):
     # We leave the file descriptor open for a long as the process is running in
     # order to maintain the lock on the file. Once the app closes the lock is
     # released which allows another instance to start.
-    # TODO: Figure out why atexit is deleting pids before exiting.
-    #atexit.register(os.unlink, pid_filename)
   except IOError, e:
     # This usually means that there is already a running process.
     # Get the pid of the other process.

@@ -1,0 +1,11 @@
+# Defaults for the twitcher startup init script.
+
+# Set to yes to allow Twitcher to start as a service.
+ENABLE_TWITCHER="no"
+
+# The pid file that will be written and locked at startup.
+TWITCHER_PID="/var/run/twitcher.pid"
+
+# The list of servers that twitcher should use for the zookeeper cluster.
+# This must be set in order for twitcher to start.
+ZKSERVERS=""

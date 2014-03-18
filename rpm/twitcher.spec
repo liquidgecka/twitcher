@@ -1,13 +1,13 @@
-%define VERSION  1.6
-%define RELEASE  3
+%define VERSION  1.7.0
+%define RELEASE  1
 
 Name:           twitcher
 Version:        %{VERSION}
 Release:        %{RELEASE}
 Summary:        A zookeeper watch daemon.
 Group:          Tools/Twitcher
-License:        Internal
-Url:            http://github.com/twitter/twitcher
+License:        Apache
+Url:            http://github.com/liquidgecka/twitcher
 Source:         twitcher.tar
 
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root

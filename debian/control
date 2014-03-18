@@ -1,0 +1,18 @@
+Maintainer: Brady Catherman <ubuntu@gecka.us>
+Priority: optional
+Section: python
+Source: twitcher
+Standards-Version: 3.9.1
+Homepage: http://github.com/liquidgecka/twitcher
+Vcs-Browser: https://github.com/liquidgecka/twitcher
+Vcs-Git: git://git@github.com:liquidgecka/twitcher.git
+X-Python-Version: >= 2.5
+Build-Depends: python (>= 2.6.6-3), debhelper (>= 7.4.3)
+
+Package: twitcher
+Architecture: all
+Depends: ${misc:Depends}, ${python:Depends}, python-zookeeper
+Description: Runs scripts when Zookeeper nodes change.
+ Twitcher is a minimal tool used to run scripts when a znode in ZooKeeper
+ changes. The intent is to allow various system tasks to take place on a
+ watched model rather than via polling.

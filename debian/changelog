@@ -1,0 +1,9 @@
+twitcher (0.1-1) saucy; urgency=low
+
+  * Rearange package details to make setup.py work as expected.
+  * Setup debian package build tooling.
+  * Slight code clean up and an added upstart script.
+
+  * Creation of the initial debian framework.
+
+ -- Brady Catherman <ubuntu@gecka.us>  Wed, 19 Mar 2014 08:20:33 -0600
