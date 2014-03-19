@@ -1,3 +1,9 @@
+twitcher (1.7.1-1) saucy; urgency=low
+
+  * Integrated wickman and jtrosby's improvements into the code base.
+
+ -- Brady Catherman <ubuntu@gecka.us>  Wed, 19 Mar 2014 12:50:06 -0600
+
 twitcher (1.7.0-1) saucy; urgency=low
 
   * Rearange package details to make setup.py work as expected.
