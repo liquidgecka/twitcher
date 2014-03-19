@@ -48,18 +48,18 @@ debian_release:
 	make debuild launchpad clean
 
 clean:
-	[ -f version.txt.auto ] && rm -f version.txt.auto
-	[ -f build ] && rm -rf build
-	[ -f debian/files ] && rm -f debian/files
-	[ -f debian/twitcher.debhelper.log ] && \
+	[ ! -f version.txt.auto ] || rm -f version.txt.auto
+	[ ! -f build ] || rm -rf build
+	[ ! -f debian/files ] || rm -f debian/files
+	[ ! -f debian/twitcher.debhelper.log ] || \
 	    rm -f debian/twitcher.debhelper.log
-	[ -f debian/twitcher.postinst.debhelper ] && \
+	[ ! -f debian/twitcher.postinst.debhelper ] || \
 	    rm -f debian/twitcher.postinst.debhelper
-	[ -f debian/twitcher.prerm.debhelper ] && \
+	[ ! -f debian/twitcher.prerm.debhelper ] || \
 	    rm -f debian/twitcher.prerm.debhelper
-	[ -f debian/twitcher.substvars ] && \
+	[ ! -f debian/twitcher.substvars ] || \
 	    rm -f debian/twitcher.substvars
-	[ -f debian/twitcher ] && rm -rf debian/twitcher
+	[ ! -f debian/twitcher ] || rm -rf debian/twitcher
 
 pypi:
 	python setup.py sdist upload
