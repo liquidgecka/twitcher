@@ -35,7 +35,7 @@ new_release:
 	dch -v "$(VER)-1"
 	dch -r
 	git commit -m 'Debian release $(VER)-1' debian/changelog
-	#make pypi debuild launchpad clean
+	make pypi debuild launchpad clean
 
 debian_release:
 	if git diff --shortstat | egrep -q '.' ; then \
@@ -45,7 +45,7 @@ debian_release:
 	dch -i
 	dch -r
 	git commit -m 'Updated debian release' debian/changelog
-	#make debuild launchpad clean
+	make debuild launchpad clean
 
 clean:
 	[ -f version.txt.auto ] && rm -f version.txt.auto
@@ -81,7 +81,7 @@ launchpad: debuild
 	    "build/dpkg/twitcher_$(VERSION)-$(DEBIAN_RELEASE)_source.changes"
 	for distro in $(DISTROS) ; do \
 	  backportpackage \
-	      -d "${distro}" \
+	      -d "$${distro}" \
 	      --upload ppa:liquidgecka/twitcher \
-	      "build/dpkg/twitcher_$(VERSION)-$(DEBIAN_RELEASE).dsc" \
+	      "build/dpkg/twitcher_$(VERSION)-$(DEBIAN_RELEASE).dsc" ; \
 	done
